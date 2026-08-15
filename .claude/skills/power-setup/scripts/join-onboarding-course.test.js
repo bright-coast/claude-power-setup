@@ -13,7 +13,7 @@ test('parseArgs defaults isExistingClient to false', () => {
   assert.strictEqual(args.isExistingClient, false);
 });
 
-test('buildRequestBody never shell-interpolates — returns a plain object, not a string', () => {
+test('buildRequestBody never shell-interpolates, returns a plain object, not a string', () => {
   const body = buildRequestBody({ firstName: 'O\'Brien', lastName: 'Test', email: 'a"b@example.com', isExistingClient: false });
   assert.strictEqual(typeof body, 'object');
   assert.strictEqual(body.firstName, "O'Brien");

@@ -5,4 +5,5 @@
 
 ## Rules
 @rules/permission-modes.md
+@rules/memory.md
 {{ADDITIONAL_RULE_IMPORTS_BASED_ON_INTERVIEW_ANSWERS}}

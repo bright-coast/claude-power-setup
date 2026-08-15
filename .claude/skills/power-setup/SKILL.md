@@ -5,7 +5,7 @@ description: Adaptive onboarding interview that configures Claude Code for a new
 
 # Claude Power Setup
 
-Conduct this as a real conversation using AskUserQuestion, one question at a time. Throughout this interview, "the user's target directory" means wherever the user is actually running Claude Code when they invoke this skill, their own project folder or home directory, never this cloned `claude-power-setup` repo itself. Write progress to `.power-setup-state.json` in that directory after each step, so a restart resumes instead of starting over. Before doing anything else, confirm the current directory isn't this repo; if it is, warn the user and ask them to run the setup from their own project instead, so nothing here, including this repo's own shipped `CLAUDE.md` template, gets overwritten in place.
+Conduct this as a real conversation using AskUserQuestion, one question at a time. This repo is the user's new Claude Code home base: once they've cloned it into place, this interview writes everything (the state file, the generated `CLAUDE.md`, settings) right here, in this repo, in place, not somewhere else. Write progress to `.power-setup-state.json` in the current directory after each step, so a restart resumes instead of starting over.
 
 ## Step 1: Environment sanity check (automatic, no question asked)
 
@@ -32,7 +32,7 @@ Still fully skippable, but the framing depends on `isExistingClient`:
 - If `isExistingClient` is **false** (new prospect): Ask "What's your name and email? This lets me tailor the rest of this, and adds you to a short email course on getting the most out of your setup, unsubscribe anytime; Rob can also follow up if you want a hand. Totally optional, just say skip if you'd rather not."
 - If `isExistingClient` is **true**: Ask "What's your name and email? This isn't for a mailing list, it just lets me let Rob know you ran through this, in case you want a hand. Totally optional, just say skip if you'd rather not."
 
-If provided, store `firstName`, `lastName`, `email` in the state file. These get sent via the signup script in this repo's scripts folder at the very end of the interview (Step 11), not immediately, so a user who abandons partway through never gets signed up on a partial answer.
+If provided, store `firstName`, `lastName`, `email` in the state file. These get sent via `.claude/skills/power-setup/scripts/join-onboarding-course.js` at the very end of the interview (Step 11), not immediately, so a user who abandons partway through never gets signed up on a partial answer.
 
 ## Step 4: Work / personal / both
 
@@ -55,7 +55,7 @@ If the usage-context signal (Step 4) and the comfort signal (Step 5) point towar
 Ask which mail provider(s) they use: Gmail, Outlook, Apple Mail (Mac only), or other/IMAP. Skip entirely if `personaTier` is `minimal` and they said "personal" with no mention of needing email access.
 
 - **Gmail**: offer the choice between `@marlinjai/email-mcp` (near-zero setup, it ships a pre-registered OAuth app, no Google Cloud Console step) and a full custom Google API integration (more setup, more control). Default recommendation: `@marlinjai/email-mcp` unless `personaTier` is `technical`. If they go with it, actually run the setup rather than just describing it: execute `npx @marlinjai/email-mcp setup` and let its own interactive wizard walk the user through picking a provider and authenticating. Don't try to reimplement that wizard yourself.
-- **Outlook**: note it needs an Azure app registration, meaningfully more setup than Gmail, and that `@marlinjai/email-mcp` also covers Outlook via OAuth2. If they proceed, run the same command as Gmail, `npx @marlinjai/email-mcp setup`, and pick Outlook when its wizard asks.
+- **Outlook**: covered by the same `@marlinjai/email-mcp` wizard as Gmail, no meaningfully different setup: it uses a built-in OAuth/PKCE flow, so no Azure app registration is needed for the default path. If they proceed, run the same command as Gmail, `npx @marlinjai/email-mcp setup`, and pick Outlook when its wizard asks. Only mention Azure app registration as an optional aside, for someone who specifically wants their own OAuth app instead of the built-in one.
 - **Apple Mail** (only if they're on a Mac): recommend `apple-mail-mcp` (by sweetrb), local AppleScript, no credentials needed at all. There's no single confirmed one-line install for this one, so don't guess a command. First run `claude mcp list` to check whether it's already configured. If it isn't, look up the package's actual install instructions before doing anything, for example `npm view apple-mail-mcp` for the current version and repo link, or its README at the linked GitHub repo, then add it with `claude mcp add` using whatever invocation that lookup actually confirms.
 - **Other/IMAP**: note they'll need an app-specific password from their provider's security settings (not their real account password), and point to `imap-mcp-server` (by nikolausm). Same approach as Apple Mail: check `claude mcp list` first, then look up the real install command with `npm view imap-mcp-server` or its README rather than guessing, then add it with `claude mcp add`.
 
@@ -90,11 +90,17 @@ Explain the table in `rules/permission-modes.md` in the user's own words, not ju
 
 Never recommend `bypassPermissions` under any circumstance in this flow.
 
-Once a mode is agreed, actually set it rather than just explaining it. Read `.claude/settings.json` in the user's target directory if it already exists, and merge in `{"permissions": {"defaultMode": "<mode>"}}` alongside whatever else is already in that file; don't clobber unrelated keys. If the file doesn't exist yet, create it with just that key. Never write `"auto"` or `"bypassPermissions"` as the value unless the user is in the `technical`/`everything` tier and has explicitly confirmed they understand the tradeoff. If they haven't confirmed, write the more cautious mode (`plan` or `acceptEdits`) instead and mention they can change it later.
+Once a mode is agreed, actually set it rather than just explaining it. Read `.claude/settings.json` at the repo root if it already exists, and merge in `{"permissions": {"defaultMode": "<mode>"}}` alongside whatever else is already in that file; don't clobber unrelated keys. If the file doesn't exist yet, create it with just that key.
+
+Never write `"bypassPermissions"` as the value, full stop, no exceptions. This is the same rule as "never recommend it" above, just applied to the actual write, not just the recommendation. `"auto"` is the only mode that's conditionally writable: only write it if the user is in the `technical`/`everything` tier and has explicitly confirmed they understand the tradeoff. If they haven't confirmed, write the more cautious mode (`plan` or `acceptEdits`) instead and mention they can change it later.
+
+Claude Code can decline to edit its own permission settings mid-session. If that write is refused, don't paper over it as if it succeeded: print the exact `{"permissions": {"defaultMode": "<mode>"}}` block for the user to paste into `.claude/settings.json` themselves, or point them to `/config`, and say plainly that the mode wasn't applied automatically.
 
 ## Step 10: Generate CLAUDE.md
 
-Copy the CLAUDE.md template in this repo into the user's target directory (as defined at the top of this skill), filling in `{{PROJECT_OR_PERSON_NAME}}` and `{{ONE_LINE_FROM_INTERVIEW}}` from the interview answers. Always import `rules/permission-modes.md` and `rules/memory.md` (memory applies at every persona tier, per Step 5), and add any other rule file relevant only to what they actually opted into (don't import a mail-provider rule file if they skipped Step 6, etc.). If no name was ever collected (the user skipped Step 3), fall back to the target directory's name rather than inventing a person's name. Apply the same litmus test when writing anything new: would removing this line cause Claude to make a mistake? If not, don't write it.
+Before writing anything, check the `CLAUDE.md` already sitting at the repo root: if it no longer contains the `{{...}}` placeholders, this setup already ran here before. Tell the user plainly that it looks like the setup already ran, and confirm before overwriting their personalized file.
+
+Fill in `CLAUDE.md` in place at the repo root, replacing `{{PROJECT_OR_PERSON_NAME}}` and `{{ONE_LINE_FROM_INTERVIEW}}` with the interview answers directly. Don't copy it anywhere else: `rules/` lives right next to it, and the `@rules/...` imports below only resolve correctly relative to this file's own location. Always import `rules/permission-modes.md` and `rules/memory.md` (memory applies at every persona tier, per Step 5), and add any other rule file relevant only to what they actually opted into (don't import a mail-provider rule file if they skipped Step 6, etc.). If no name was ever collected (the user skipped Step 3), fall back to the repo folder's name rather than inventing a person's name. Apply the same litmus test when writing anything new: would removing this line cause Claude to make a mistake? If not, don't write it.
 
 ## Step 11: Closing CTA
 
