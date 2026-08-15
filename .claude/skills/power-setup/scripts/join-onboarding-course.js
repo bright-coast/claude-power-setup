@@ -15,7 +15,7 @@
 // usage; a signup hiccup should not look alarming to a user watching the
 // interview run in their terminal.
 
-const SIGNUP_URL = 'https://signup.brightcoast.ai/claude-power-setup';
+const SIGNUP_URL = 'https://signup.brightcoast.ai';
 const USAGE = 'Usage: node join-onboarding-course.js <firstName> <lastName> <email> [--existing-client]';
 
 function parseArgs(argv) {
