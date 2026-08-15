@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 *.log
 worker/.wrangler/
+.superpowers/
+docs/
+.power-setup-state.json
