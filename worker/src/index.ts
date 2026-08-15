@@ -17,12 +17,20 @@ async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   return [...new Uint8Array(sigBuffer)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const EMAIL_FORMAT_RE = /^\S+@\S+\.\S+$/;
+
 async function checkRateLimit(kv: KVNamespace, ip: string): Promise<boolean> {
   const key = `rl:${ip}`;
-  const current = parseInt((await kv.get(key)) ?? '0', 10);
-  if (current >= RATE_LIMIT_MAX) return false;
-  await kv.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_WINDOW_SECONDS });
-  return true;
+  try {
+    const current = parseInt((await kv.get(key)) ?? '0', 10);
+    if (current >= RATE_LIMIT_MAX) return false;
+    await kv.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_WINDOW_SECONDS });
+    return true;
+  } catch {
+    // KV is unavailable. Fail open: this is public lead capture, not a security
+    // gate, so letting the request through beats silently dropping every signup.
+    return true;
+  }
 }
 
 export default {
@@ -48,15 +56,23 @@ export default {
     if (!email || typeof email !== 'string') {
       return Response.json({ error: 'email is required' }, { status: 400 });
     }
+    if (!EMAIL_FORMAT_RE.test(email)) {
+      return Response.json({ error: 'email looks invalid' }, { status: 400 });
+    }
 
     const forwardBody = JSON.stringify({ email, firstName, lastName, isExistingClient: !!isExistingClient });
     const signature = 'sha256=' + await hmacSha256Hex(env.WEBHOOK_SECRET, forwardBody);
 
-    const upstream = await fetch(FUNNELPORT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signature },
-      body: forwardBody,
-    });
+    let upstream: Response;
+    try {
+      upstream = await fetch(FUNNELPORT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signature },
+        body: forwardBody,
+      });
+    } catch {
+      return Response.json({ error: 'Signup failed, please try again' }, { status: 502 });
+    }
 
     if (!upstream.ok) {
       return Response.json({ error: 'Signup failed, please try again' }, { status: 502 });

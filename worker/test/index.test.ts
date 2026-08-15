@@ -19,20 +19,32 @@ function makeEnv(overrides = {}) {
 describe('signup worker', () => {
   it('rejects non-POST methods', async () => {
     const env = makeEnv();
-    const req = new Request('https://signup.brightcoast.ai/claude-power-setup', { method: 'GET' });
+    const req = new Request('https://signup.brightcoast.ai', { method: 'GET' });
     const res = await worker.fetch(req, env as any);
     expect(res.status).toBe(405);
   });
 
   it('rejects a request missing email', async () => {
     const env = makeEnv();
-    const req = new Request('https://signup.brightcoast.ai/claude-power-setup', {
+    const req = new Request('https://signup.brightcoast.ai', {
       method: 'POST',
       body: JSON.stringify({ firstName: 'Test' }),
       headers: { 'Content-Type': 'application/json' },
     });
     const res = await worker.fetch(req, env as any);
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a request with an invalid email format', async () => {
+    const env = makeEnv();
+    const req = new Request('https://signup.brightcoast.ai', {
+      method: 'POST',
+      body: JSON.stringify({ ...VALID_BODY, email: 'not-an-email' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await worker.fetch(req, env as any);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'email looks invalid' });
   });
 
   it('forwards a signed request to FunnelPort and returns ok on success', async () => {
@@ -43,7 +55,7 @@ describe('signup worker', () => {
       return new Response(JSON.stringify({ ok: true }), { status: 202 });
     }) as any;
 
-    const req = new Request('https://signup.brightcoast.ai/claude-power-setup', {
+    const req = new Request('https://signup.brightcoast.ai', {
       method: 'POST',
       body: JSON.stringify(VALID_BODY),
       headers: { 'Content-Type': 'application/json' },
@@ -56,7 +68,7 @@ describe('signup worker', () => {
   it('rate-limits after 5 requests from the same IP within the window', async () => {
     const env = makeEnv();
     global.fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 202 })) as any;
-    const makeReq = () => new Request('https://signup.brightcoast.ai/claude-power-setup', {
+    const makeReq = () => new Request('https://signup.brightcoast.ai', {
       method: 'POST',
       body: JSON.stringify(VALID_BODY),
       headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '1.2.3.4' },
@@ -68,5 +80,25 @@ describe('signup worker', () => {
     }
     const sixth = await worker.fetch(makeReq(), env as any);
     expect(sixth.status).toBe(429);
+  });
+
+  it('fails open and forwards the request when KV throws', async () => {
+    const env = makeEnv({
+      RATE_LIMIT_KV: {
+        get: async () => { throw new Error('KV unavailable'); },
+        put: async () => { throw new Error('KV unavailable'); },
+      },
+    });
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 202 })) as any;
+
+    const req = new Request('https://signup.brightcoast.ai', {
+      method: 'POST',
+      body: JSON.stringify(VALID_BODY),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await worker.fetch(req, env as any);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(global.fetch).toHaveBeenCalled();
   });
 });
