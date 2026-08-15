@@ -1,0 +1,11 @@
+name = "claude-power-setup-signup"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+routes = [
+  { pattern = "signup.brightcoast.ai/claude-power-setup", custom_domain = true }
+]
+
+kv_namespaces = [
+  { binding = "RATE_LIMIT_KV", id = "REPLACE_WITH_REAL_KV_NAMESPACE_ID" }
+]

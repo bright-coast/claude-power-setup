@@ -1,0 +1,13 @@
+{
+  "name": "claude-power-setup-signup-worker",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.5.0",
+    "vitest": "^2.0.0",
+    "wrangler": "^3.0.0"
+  }
+}
