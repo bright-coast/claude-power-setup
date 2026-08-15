@@ -40,3 +40,5 @@ Bucket into a `personaTier` stored in the state file:
 - **solo-business**: work or both, moderate comfort. Adds mail connector, defaults to `acceptEdits`.
 - **technical**: high comfort / has used a terminal. Adds dev CLI tooling, mentions `claude-automation-recommender`, comfortable with `auto` mode if they confirm they understand the tradeoff.
 - **everything**: offered explicitly as a fourth option alongside the three above. "Or, want the full setup, all of it?"
+
+If the usage-context signal (Step 4) and the comfort signal (Step 5) point toward different tiers, for example work usage paired with no command-line experience, round down to the more cautious tier rather than up. Never over-provision connectors or tooling off an ambiguous answer.
