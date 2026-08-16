@@ -35,7 +35,7 @@ Also record the detected OS (`mac`, `windows`, or `linux`) as `os` in the state 
 
 Ask: "Are you setting up a new Claude Code configuration, or would you like me to review your existing one?"
 
-- If **review**: tell the user plainly that review mode isn't available yet (review mode continues at the steps a later revision of this file will add here, and that content doesn't exist yet) and offer to continue with a fresh setup instead. Don't write `mode` to the state file until they've responded to that offer, so a resumed session never reopens on the same dead-end choice. If they agree, set `mode = "setup"` and continue to Step 2 exactly as the interview already works today. If they decline, don't set `mode` at all; tell them they're welcome to come back once review mode ships, and stop the interview here.
+- If **review**: set `mode = "review"` in the state file and continue to Step 2 exactly as the interview already works today. The existing-client check, name/email, work/personal/both, and persona-tier steps are genuinely useful for review mode too, they calibrate how much detail to give and still serve the lead-capture/client-touch purpose either way. Step 5 sends a review-mode session on to the Review Mode section at the end of this file instead of Step 6.
 - If **setup** (or the user doesn't distinguish; setup is the sensible default for anyone without a strong opinion): set `mode = "setup"` in the state file and continue to Step 2 exactly as the interview already works today.
 
 ## Step 2: Existing client check
@@ -71,6 +71,8 @@ Bucket into a `personaTier` stored in the state file:
 - **everything**: offered explicitly as a fourth option alongside the three above. "Or, want the full setup, all of it?"
 
 If the usage-context signal (Step 4) and the comfort signal (Step 5) point toward different tiers, for example work usage paired with no command-line experience, round down to the more cautious tier rather than up. Never over-provision connectors or tooling off an ambiguous answer.
+
+Once `personaTier` is set, check `mode`. If `mode` is `review`, skip ahead to the Review Mode section at the end of this file and continue from R1 there. Otherwise, continue to Step 6 exactly as today.
 
 ## Step 6: Mail providers
 
@@ -132,3 +134,49 @@ The signup script in this repo's scripts folder is `.claude/skills/power-setup/s
 - If `isExistingClient` is **true** and `email` was provided in Step 3: run `node .claude/skills/power-setup/scripts/join-onboarding-course.js <firstName> <lastName> <email> --existing-client`. This is what lets Rob know an existing client ran through the setup, kept separate from the marketing list.
 - If `isExistingClient` is **true** and email was declined: don't run the script. Show: "Since you're already working with Rob, the best next step for a 1:1 walkthrough is booking through your portal: https://app.brightcoast.ai/dashboard/portal?tab=schedule"
 - If `isExistingClient` is **false** and email was declined: don't run the script. Show: "If you'd like a hand getting this exactly right, Rob runs a two-hour 1:1 setup session: https://book.brightcoast.ai/rob-lee/setup"
+
+## Review Mode
+
+These steps only run when `mode` is `review` (set in Step 1.5, reached here from the end of Step 5). They exist for someone who already has some Claude Code setup and wants an audit of it, not a fresh build. The rule for every step below is the same one this whole product is built on: never assume a file or setting exists or doesn't, check the real state first, report what's actually there, then ask before changing anything. Never silently modify a file that isn't part of this repo's own template.
+
+### R1: Confirm scope
+
+Ask: "Want me to review this project's setup, your global `~/.claude` setup, or both?" Don't assume. This repo, wherever Step 0 resolved it to, is Claude Power Setup's own home base, not the project the user actually wants reviewed; those are different directories by this product's own design. "This project" means the directory the interview was originally pasted into, before Step 0 potentially redirected anything elsewhere, the same "original paste location" Step 1's cloud-sync guard already tracks.
+
+Store the answer as `reviewScope` (`project`, `global`, or `both`) in the state file. When `project` or `both` is chosen, also store `reviewProjectPath` as that original paste location. R2 through R6 run once for each location in scope; when `reviewScope` is `both`, run each of them against the project location and the global location in turn, and keep the findings separated by location in R7's summary so it's clear which fix applies where.
+
+### R2: Audit CLAUDE.md
+
+For each location in scope, check whether a `CLAUDE.md` exists there (the project root for `project` scope, `~/.claude/CLAUDE.md` for `global` scope). If it exists, read it and assess it against the same litmus test Step 10 already uses for writing one: would removing this line cause Claude to make a mistake? If not, it shouldn't be there. Also note general bloat, repeated content, or a length that's grown past what a skimmable file needs. If it doesn't exist at a location that's in scope, note that plainly as missing rather than skipping past it. Report findings only; nothing gets changed here, that happens in R7 and only after the user agrees to it.
+
+### R3: Audit memory
+
+Check whether their `CLAUDE.md` (or a rules file it imports) already describes a memory practice, the same kind of thing `rules/memory.md` in this repo does: a persistent, file-based memory of the user and their work that carries across sessions, not just within one conversation. If it's missing, note the gap, and describe what adding it would look like, using this repo's own `rules/memory.md` as the reference implementation R7 would actually copy in if they want it. Don't write anything yet.
+
+### R4: Audit permission mode
+
+Read `.claude/settings.json` at whichever location(s) are in scope per R1, the project's own `.claude/settings.json`, and/or the global `~/.claude/settings.json`. If it exists, report what `permissions.defaultMode` is currently set to. If it's `bypassPermissions`, flag that clearly as a real risk: per `rules/permission-modes.md`, that mode runs everything with no safety checks at all and is meant for isolated containers, never a main machine. If it's unset, or set to a mode that looks reasonable given how they described their setup, say so and move on. Don't change anything here either; that's R7's job, only if they ask for it.
+
+### R5: Audit connectors and tooling
+
+Run `claude mcp list` and report what's actually configured, mail connectors or anything else. If `personaTier` is `technical` or `everything`, or `usageContext` suggests they build or deploy things, also check for `gcloud`, `wrangler`, and `gh` the same way Step 8 does (`gcloud --version`, `wrangler --version` or `npx wrangler --version` if it's not on PATH, `gh --version`). Purely informational at this stage; no installs or changes happen here.
+
+### R6: Audit structure
+
+Note whether they have any rules-file organization at all, a `rules/` folder or equivalent, versus everything sitting in one `CLAUDE.md`. Only flag this as worth fixing if the file's actual size makes it a real problem, for example a specific rule has become hard to find or the file's no longer skimmable in a few seconds. Don't recommend splitting a short, well-organized `CLAUDE.md` into multiple files just because modularizing is possible; that's a reflexive opinion, not a finding.
+
+### R7: Summary and offers
+
+Present the findings from R2 through R6 as one organized summary: what's solid, what's missing, what's worth reconsidering. For each real gap, ask if they'd like it fixed, one at a time or however feels natural in the conversation, don't dump every gap as a single wall of asks in one message.
+
+If they say yes to something, actually do it, reusing this file's own existing real-action patterns rather than reinventing them:
+
+- **Permission mode**: follow the same read-merge-write-with-fallback approach Step 9 already uses. Read the existing `settings.json` (project or global, whichever's in scope), merge in `{"permissions": {"defaultMode": "<mode>"}}` alongside whatever else is already there, don't clobber unrelated keys, and never write `bypassPermissions` under any circumstance. If the write gets refused, print the exact block for the user to paste in themselves, exactly as Step 9 does.
+- **Adding memory**: follow the same copy-the-rules-file approach Step 10 uses when generating a fresh `CLAUDE.md`, adapted here to an existing file rather than a fresh template. If they already have an importable rules folder, add a new memory rules file there (matching this repo's own `rules/memory.md`) and merge in the import line. If they don't have anywhere to import from, write the same memory content directly into their `CLAUDE.md` instead of inventing a different practice.
+- **CLAUDE.md gaps or bloat**: edit the file in place, explaining what's changing and why before writing it.
+
+Never silently auto-fix everything at once. This step is a conversation, check, report, ask, then act, one gap at a time, not a batch script that rewrites someone's whole setup in a single pass.
+
+### R8: Closing CTA
+
+Follow Step 11's closing CTA logic above, exactly as already written there: existing client gets the portal link, new prospect who gave an email in Step 3 gets the signup script run, new prospect who didn't gets the booking link only. Don't repeat that logic here; there should only ever be one copy of it to keep correct.
