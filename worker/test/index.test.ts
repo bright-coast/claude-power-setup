@@ -16,6 +16,37 @@ function makeEnv(overrides = {}) {
   };
 }
 
+describe('setup worker (GET, short link)', () => {
+  it('proxies the SKILL.md content on GET', async () => {
+    const env = makeEnv();
+    global.fetch = vi.fn(async (url) => {
+      expect(url).toBe('https://raw.githubusercontent.com/bright-coast/claude-power-setup/main/.claude/skills/power-setup/SKILL.md');
+      return new Response('# fake skill content', { status: 200 });
+    }) as any;
+
+    const req = new Request('https://setup.brightcoast.ai', { method: 'GET' });
+    const res = await worker.fetch(req, env as any);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
+    expect(await res.text()).toBe('# fake skill content');
+  });
+
+  it('rejects non-GET methods on setup.brightcoast.ai', async () => {
+    const env = makeEnv();
+    const req = new Request('https://setup.brightcoast.ai', { method: 'POST' });
+    const res = await worker.fetch(req, env as any);
+    expect(res.status).toBe(405);
+  });
+
+  it('returns 502 when the upstream GitHub fetch fails', async () => {
+    const env = makeEnv();
+    global.fetch = vi.fn(async () => new Response('not found', { status: 404 })) as any;
+    const req = new Request('https://setup.brightcoast.ai', { method: 'GET' });
+    const res = await worker.fetch(req, env as any);
+    expect(res.status).toBe(502);
+  });
+});
+
 describe('signup worker', () => {
   it('rejects non-POST methods', async () => {
     const env = makeEnv();

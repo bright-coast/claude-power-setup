@@ -5,8 +5,29 @@ export interface Env {
 }
 
 const FUNNELPORT_URL = 'https://funnel.brightcoast.ai/api/webhook/claude-power-setup';
+const SKILL_SOURCE_URL = 'https://raw.githubusercontent.com/bright-coast/claude-power-setup/main/.claude/skills/power-setup/SKILL.md';
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_SECONDS = 60;
+
+async function serveSkill(): Promise<Response> {
+  let upstream: Response;
+  try {
+    upstream = await fetch(SKILL_SOURCE_URL, { cf: { cacheTtl: 300, cacheEverything: true } });
+  } catch {
+    return new Response('Could not fetch the setup guide, try again shortly.', { status: 502 });
+  }
+  if (!upstream.ok) {
+    return new Response('Could not fetch the setup guide, try again shortly.', { status: 502 });
+  }
+  const body = await upstream.text();
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+}
 
 async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey(
@@ -35,6 +56,15 @@ async function checkRateLimit(kv: KVNamespace, ip: string): Promise<boolean> {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    const url = new URL(req.url);
+
+    if (url.hostname === 'setup.brightcoast.ai') {
+      if (req.method !== 'GET') {
+        return Response.json({ error: 'Method not allowed' }, { status: 405 });
+      }
+      return serveSkill();
+    }
+
     if (req.method !== 'POST') {
       return Response.json({ error: 'Method not allowed' }, { status: 405 });
     }

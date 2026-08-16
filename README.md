@@ -6,7 +6,7 @@ Claude Power Setup is an adaptive interview for [Claude Code](https://code.claud
 
 Paste this into any existing Claude Code session:
 
-> Fetch https://raw.githubusercontent.com/bright-coast/claude-power-setup/main/.claude/skills/power-setup/SKILL.md and follow the instructions in it.
+> Fetch https://setup.brightcoast.ai and follow the instructions in it.
 
 Claude reads the interview and, if it isn't already running from inside a local copy of this repo, clones one for you automatically before continuing, asking where first rather than assuming. From there it's the same interview either way.
 

@@ -3,7 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2026-08-01"
 
 routes = [
-  { pattern = "signup.brightcoast.ai", custom_domain = true }
+  { pattern = "signup.brightcoast.ai", custom_domain = true },
+  { pattern = "setup.brightcoast.ai", custom_domain = true }
 ]
 
 kv_namespaces = [
