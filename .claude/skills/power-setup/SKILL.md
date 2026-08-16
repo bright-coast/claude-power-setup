@@ -11,18 +11,22 @@ Conduct this as a real conversation using AskUserQuestion, one question at a tim
 
 Before anything else, check whether this repo is already present locally: does `rules/environment-checks.md` exist relative to the current working directory?
 
-- If it exists, this is already a local clone, or this is being run from inside one. Skip straight to Step 1, no cloning needed.
+- If it exists, this is already a local clone. Skip straight to Step 1, no cloning needed.
 - If it doesn't exist, this instruction was pasted into a Claude Code session that doesn't have this repo yet. Tell the user plainly what's about to happen: this is the Claude Power Setup interview, and it needs its own repo on disk before the rest of the interview can run. Then:
   1. Ask where to clone it, suggesting a sensible default: `~/claude-power-setup`, a home-directory-relative path that works the same way on macOS, Windows, and Linux. Let them just accept the default rather than typing a path.
   2. Before cloning, apply the same guard the rest of this product uses against cloud-synced folders. `rules/environment-checks.md` can't be `@`-imported yet at this point, since it doesn't exist locally, so state the check inline here: if the chosen path contains `OneDrive`, `iCloud Drive`, or `Dropbox`, warn the user and suggest a different location instead of cloning there.
   3. Run `git clone https://github.com/bright-coast/claude-power-setup.git <chosen-path>`. If `git` isn't available, tell the user plainly that git is required for this path, and suggest downloading the repo as a zip from GitHub and extracting it manually instead, then re-running "run the setup" from inside the extracted folder. Don't build a more elaborate fallback than that; it isn't worth the complexity for how rare it'll be.
-  4. Once cloned, continue the rest of this interview using paths relative to the newly-cloned directory from this point forward, exactly as if the user had cloned it manually per the README. State this plainly so it's clear the working directory has effectively changed: every relative path referenced later in this file, `rules/...`, `.power-setup-state.json`, `CLAUDE.md`, `.claude/skills/power-setup/scripts/...`, now resolves inside `<chosen-path>`, not wherever this was originally pasted.
+  4. Handle the clone's actual result before continuing; don't assume it worked:
+     - If it fails specifically because `<chosen-path>` already exists and isn't empty, treat that as a soft success, not an error: tell the user it looks like this is already cloned there, and continue the rest of the interview from that path, the same as the already-present branch above.
+     - If it fails for any other reason (repo not found or private, network error, an auth prompt that would hang, etc.), show the user the actual error output and stop. Don't continue the interview as if the clone had succeeded.
+     - If it succeeds outright, continue as normal.
+  5. Once cloned, or confirmed already there per the step above, continue the rest of this interview using paths relative to the newly-cloned directory from this point forward, exactly as if the user had cloned it manually per the README. State this plainly so it's clear the working directory has effectively changed: every relative path referenced later in this file, `rules/...`, `.power-setup-state.json`, `CLAUDE.md`, `.claude/settings.json`, `.claude/skills/power-setup/scripts/...`, now resolves inside `<chosen-path>`, not wherever this was originally pasted.
 
 ## Step 1: Environment sanity check (automatic, no question asked)
 
 Run, in order, stopping to help fix any failure before continuing:
 1. `claude --version`. If this fails, Claude Code itself isn't correctly installed; stop and point the user to https://code.claude.com/docs/en/setup.
-2. Check whether the current working directory path contains `OneDrive`, `iCloud Drive`, or `Dropbox` (see `rules/environment-checks.md` for why this matters). If it does, tell the user plainly and recommend moving to a folder near their home directory before continuing.
+2. Check whether the current working directory path contains `OneDrive`, `iCloud Drive`, or `Dropbox` (see `rules/environment-checks.md` for why this matters). If Step 0 just cloned the repo, apply this check to the Step 0 clone path, not the original paste location; Claude Code can't actually change the OS-level working directory mid-session, so "current working directory" here means wherever the interview is now treating as its base. If it does contain one of those, tell the user plainly and recommend moving to a folder near their home directory before continuing.
 3. On Windows only, confirm `.local\bin` is in PATH (`echo $env:PATH` in PowerShell, or `echo $PATH` in Git Bash). If missing, walk them through `rules/environment-checks.md`'s fix.
 
 Also record the detected OS (`mac`, `windows`, or `linux`) as `os` in the state file. Step 8 uses it later to pick the right install commands.
@@ -31,8 +35,8 @@ Also record the detected OS (`mac`, `windows`, or `linux`) as `os` in the state 
 
 Ask: "Are you setting up a new Claude Code configuration, or would you like me to review your existing one?"
 
-- If **review**: set `mode = "review"` in the state file. Review mode continues at the steps a later revision of this file will add here.
-- If **setup**, or the user doesn't distinguish, setup is the sensible default for anyone without a strong opinion: set `mode = "setup"` in the state file and continue to Step 2 exactly as the interview already works today.
+- If **review**: set `mode = "review"` in the state file. Review mode continues at the steps a later revision of this file will add here; that content doesn't exist yet, so for now tell the user plainly that review mode isn't available yet, and offer to continue with a fresh setup instead. If they agree, treat that the same as choosing setup below.
+- If **setup** (or the user doesn't distinguish; setup is the sensible default for anyone without a strong opinion): set `mode = "setup"` in the state file and continue to Step 2 exactly as the interview already works today.
 
 ## Step 2: Existing client check
 
