@@ -1,6 +1,6 @@
 ---
 name: power-setup
-description: Adaptive onboarding interview that configures Claude Code for a new user, CLAUDE.md, memory, permission mode, mail/messaging connectors, and dev tooling, tailored to who they are. Use when the user says "run the setup" or "set up Claude Code for me".
+description: Adaptive onboarding interview that configures Claude Code for a new user, CLAUDE.md, memory, permission mode, mail/messaging connectors, and dev tooling, tailored to who they are, or audits an existing Claude Code setup in review mode. Use when the user says "run the setup", "set up Claude Code for me", "review my Claude Code setup", or "audit my Claude Code setup".
 ---
 
 # Claude Power Setup
@@ -141,9 +141,9 @@ These steps only run when `mode` is `review` (set in Step 1.5, reached here from
 
 ### R1: Confirm scope
 
-Ask: "Want me to review this project's setup, your global `~/.claude` setup, or both?" Don't assume. This repo, wherever Step 0 resolved it to, is Claude Power Setup's own home base, not the project the user actually wants reviewed; those are different directories by this product's own design. "This project" means the directory the interview was originally pasted into, before Step 0 potentially redirected anything elsewhere, the same "original paste location" Step 1's cloud-sync guard already tracks.
+Ask: "Want me to review this project's setup, your global `~/.claude` setup, or both?" Don't assume. This repo, wherever Step 0 resolved it to, is Claude Power Setup's own home base, not necessarily the project the user actually wants reviewed; those are frequently different directories, and on the common path where Step 0 found the repo already cloned and skipped straight to Step 1, there's no reliable signal anywhere in this interview pointing at the user's real project.
 
-Store the answer as `reviewScope` (`project`, `global`, or `both`) in the state file. When `project` or `both` is chosen, also store `reviewProjectPath` as that original paste location. R2 through R6 run once for each location in scope; when `reviewScope` is `both`, run each of them against the project location and the global location in turn, and keep the findings separated by location in R7's summary so it's clear which fix applies where.
+When `project` or `both` is chosen, don't infer the path, ask for it directly: "What's the path to the project you'd like reviewed?" It's fine to offer the current working directory as a candidate, for example by running `pwd` (Mac/Linux/Git Bash) or `Get-Location` (PowerShell) and showing the result, but always have the user confirm it before treating it as correct; never default to it silently. Store the confirmed answer as `reviewProjectPath` in the state file, alongside `reviewScope` (`project`, `global`, or `both`). R2 through R6 run once for each location in scope, using `reviewProjectPath` for `project` scope and `~/.claude` for `global` scope; when `reviewScope` is `both`, run each of them against both locations in turn, and keep the findings separated by location in R7's summary so it's clear which fix applies where.
 
 ### R2: Audit CLAUDE.md
 
@@ -163,7 +163,7 @@ Run `claude mcp list` and report what's actually configured, mail connectors or 
 
 ### R6: Audit structure
 
-Note whether they have any rules-file organization at all, a `rules/` folder or equivalent, versus everything sitting in one `CLAUDE.md`. Only flag this as worth fixing if the file's actual size makes it a real problem, for example a specific rule has become hard to find or the file's no longer skimmable in a few seconds. Don't recommend splitting a short, well-organized `CLAUDE.md` into multiple files just because modularizing is possible; that's a reflexive opinion, not a finding.
+Check for a `rules/` folder (or equivalent) next to their `CLAUDE.md`, and scan the `CLAUDE.md` itself for `@`-import lines pointing at rule files, the same pattern this repo's own `CLAUDE.md` template uses. Note whether they have any rules-file organization at all versus everything sitting in one `CLAUDE.md`. Only flag this as worth fixing if the file's actual size makes it a real problem, for example a specific rule has become hard to find or the file's no longer skimmable in a few seconds. Don't recommend splitting a short, well-organized `CLAUDE.md` into multiple files just because modularizing is possible; that's a reflexive opinion, not a finding.
 
 ### R7: Summary and offers
 
@@ -171,12 +171,13 @@ Present the findings from R2 through R6 as one organized summary: what's solid, 
 
 If they say yes to something, actually do it, reusing this file's own existing real-action patterns rather than reinventing them:
 
-- **Permission mode**: follow the same read-merge-write-with-fallback approach Step 9 already uses. Read the existing `settings.json` (project or global, whichever's in scope), merge in `{"permissions": {"defaultMode": "<mode>"}}` alongside whatever else is already there, don't clobber unrelated keys, and never write `bypassPermissions` under any circumstance. If the write gets refused, print the exact block for the user to paste in themselves, exactly as Step 9 does.
-- **Adding memory**: follow the same copy-the-rules-file approach Step 10 uses when generating a fresh `CLAUDE.md`, adapted here to an existing file rather than a fresh template. If they already have an importable rules folder, add a new memory rules file there (matching this repo's own `rules/memory.md`) and merge in the import line. If they don't have anywhere to import from, write the same memory content directly into their `CLAUDE.md` instead of inventing a different practice.
+- **Permission mode**: follow Step 9's approach in full, exactly as written there, applied to whichever `settings.json` (project or global) is in scope: the create-it-with-just-that-key case if R4 found none, the read-merge-write case without clobbering unrelated keys if one already exists, never writing `bypassPermissions` under any circumstance, only writing `auto` if the user is in the `technical`/`everything` tier and has explicitly confirmed they understand the tradeoff, and printing the exact block for the user to paste in themselves if the write gets refused. Don't restate that logic here beyond this pointer.
+- **Adding memory**: this repo's own `CLAUDE.md` wires in `rules/memory.md` via an `@`-import line, the same pattern Step 10 uses; that only works because `rules/` already sits right next to it. The target project doesn't have that folder, so adapt the pattern instead of copying it literally: if they already have their own importable rules folder, add a new memory rules file there (matching this repo's own `rules/memory.md`) and merge in an `@`-import line pointing at it. If they don't have anywhere to import from, write the same memory content directly into their `CLAUDE.md` instead of inventing a different practice.
+- **Connectors or tooling gaps found in R5**: if they want something installed or configured, follow the same real-install patterns Step 6 (mail providers) and Step 8 (dev/deploy tooling) already use, actually running the setup rather than just describing it. Don't invent a different install method for the same tool.
 - **CLAUDE.md gaps or bloat**: edit the file in place, explaining what's changing and why before writing it.
 
 Never silently auto-fix everything at once. This step is a conversation, check, report, ask, then act, one gap at a time, not a batch script that rewrites someone's whole setup in a single pass.
 
 ### R8: Closing CTA
 
-Follow Step 11's closing CTA logic above, exactly as already written there: existing client gets the portal link, new prospect who gave an email in Step 3 gets the signup script run, new prospect who didn't gets the booking link only. Don't repeat that logic here; there should only ever be one copy of it to keep correct.
+Follow Step 11's closing CTA logic exactly as written there. Don't repeat that logic here; there should only ever be one copy of it to keep correct.
